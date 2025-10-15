@@ -6,8 +6,38 @@ import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
+import { useState, useEffect } from 'react';
+import { Text, View, Button, FlatList } from 'react-native';
+import { BleManager } from 'react-native-ble-plx';
+import { promptForEnableLocationIfNeeded } from 'react-native-android-location-enabler';
+
+
+const manager = new BleManager();
 
 export default function HomeScreen() {
+  async function handleEnabledPressed() {
+  if (Platform.OS === 'android') {
+    try {
+      const enableResult = await promptForEnableLocationIfNeeded();
+      console.log('enableResult', enableResult);
+      // The user has accepted to enable the location services
+      // data can be :
+      //  - "already-enabled" if the location services has been already enabled
+      //  - "enabled" if user has clicked on OK button in the popup
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error(error.message);
+        // The user has not accepted to enable the location services or something went wrong during the process
+        // "err" : { "code" : "ERR00|ERR01|ERR02|ERR03", "message" : "message"}
+        // codes :
+        //  - ERR00 : The user has clicked on Cancel button in the popup
+        //  - ERR01 : If the Settings change are unavailable
+        //  - ERR02 : If the popup has failed to open
+        //  - ERR03 : Internal error
+      }
+    }
+  }
+}
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
@@ -20,6 +50,12 @@ export default function HomeScreen() {
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Hello World!</ThemedText>
         <HelloWave />
+      </ThemedView>
+      <ThemedView style={styles.stepContainer}>
+        <Button
+          title="Enable Location (Android)"
+          onPress={handleEnabledPressed}
+        />
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
