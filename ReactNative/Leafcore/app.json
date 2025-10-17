@@ -20,7 +20,13 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.magulitka.Leafcore"
+      "package": "com.magulitka.Leafcore",
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT"
+      ]
     },
     "web": {
       "output": "static",
@@ -40,7 +46,15 @@
           }
         }
       ],
-      "react-native-ble-plx"
+      "react-native-ble-plx",
+      [
+        "react-native-permissions",
+        {
+          "iosPermissions": []
+        }
+      ],
+      "react-native-ble-manager",
+      "react-native-wifi-reborn"
     ],
     "experiments": {
       "typedRoutes": true,
