@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet, Alert, Linking } from 'react-native';
+import { Platform, StyleSheet, Alert, Linking, TouchableOpacity, TextInput } from 'react-native';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -8,18 +8,23 @@ import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { Text, View, Button, FlatList } from 'react-native';
-import { BleManager as BleManagerPLX } from 'react-native-ble-plx';
+import { BleManager as BleManagerPLX, Device } from 'react-native-ble-plx';
 import BleManager from 'react-native-ble-manager';
 import { promptForEnableLocationIfNeeded } from 'react-native-android-location-enabler';
 import { PERMISSIONS, RESULTS, request, requestMultiple } from 'react-native-permissions';
+import WifiManager from 'react-native-wifi-reborn';
+import { Base64 } from 'js-base64';
 
 const GREENHOUSE_SERVICE_UUID = "12345678-1234-5678-1234-567890abcdef";
 const SSID_CHAR_UUID    = "12345678-1234-5678-1234-567890abcde1";
 const PASS_CHAR_UUID    = "12345678-1234-5678-1234-567890abcde2";
 const DEVICE_NAME_PREFIX = "LC-Greenhouse";
 
-const [wifiSsid, setWifiSsid] = useState('');
+const [wifiSSID, setWifiSSID] = useState('');
 const [wifiPassword, setWifiPassword] = useState('');
+
+const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
+const [discoveredDevices, setDiscoveredDevices] = useState<Device[]>([]);
 
 const manager = new BleManagerPLX();
 
@@ -39,12 +44,66 @@ export default function HomeScreen() {
       }
 
       if (foundDevice?.name?.startsWith(DEVICE_NAME_PREFIX)) {
+        setDiscoveredDevices((alreadyDiscoveredDevices) => {
+          if (!alreadyDiscoveredDevices.some((device) => device.id === foundDevice.id)) {
+            return [...alreadyDiscoveredDevices, foundDevice];
+          }
+          return alreadyDiscoveredDevices;
+        });
         
       }
 
     })
 
   }
+
+  const connectToFoundDevice = async (device: Device) => {
+    manager.stopDeviceScan(); 
+    try {
+      const connected = await device.connect();
+      await connected.discoverAllServicesAndCharacteristics();
+      
+      setConnectedDevice(connected);
+      setDiscoveredDevices([]);
+
+      getWifiSSID();
+
+    } catch (error) {
+      Alert.alert("Connection Failed", `Could not connect to ${device.name}.`);
+    }
+  };
+
+  const getWifiSSID = async () => {
+    try {
+      const ssid = await WifiManager.getCurrentWifiSSID();
+      setWifiSSID(ssid);
+    } catch (error) {
+      Alert.alert("Wi-Fi Error", "Could not get current Wi-Fi network name.");
+    }
+  };
+
+  const sendWifiCredentials = async () => {
+    if (!connectedDevice || !wifiSSID || !wifiPassword) {
+      Alert.alert("Missing Information", "Device not connected or Wi-Fi info is incomplete.");
+      return;
+    }
+    try {
+      await connectedDevice.writeCharacteristicWithResponseForService(
+        GREENHOUSE_SERVICE_UUID, SSID_CHAR_UUID, Base64.encode(wifiSSID)
+      );
+      await connectedDevice.writeCharacteristicWithResponseForService(
+        GREENHOUSE_SERVICE_UUID, PASS_CHAR_UUID, Base64.encode(wifiPassword)
+      );
+      
+      Alert.alert("Success", "Wi-Fi credentials sent to the greenhouse.");
+      await connectedDevice.cancelConnection();
+      setConnectedDevice(null);
+
+    } catch (error) {
+      Alert.alert("Send Error", "Failed to send credentials over Bluetooth.");
+    }
+  };
+
   const openBluetoothSettings = () => {
      if (Platform.OS !== 'android') {
     return;
@@ -138,6 +197,13 @@ export default function HomeScreen() {
            //8. wait for device's data over wifi
            //9. make a post request to server
           }
+
+          const renderDeviceItem = ({ item }: { item: Device }) => (
+    <TouchableOpacity style={styles.deviceItem} onPress={() => connectToFoundDevice(item)}>
+      <Text style={styles.deviceText}>{item.name}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
@@ -157,6 +223,40 @@ export default function HomeScreen() {
           onPress={beginDeviceRegistrationProcess}
         />
       </ThemedView>
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="title">Device Registration</ThemedText>
+      </ThemedView>
+      {!connectedDevice && (
+        <ThemedView style={styles.stepContainer}>
+          <Button title="Scan for Greenhouses" onPress={scanForDevices} />
+          <FlatList
+            data={discoveredDevices}
+            renderItem={renderDeviceItem}
+            keyExtractor={(item) => item.id}
+          />
+        </ThemedView>
+      )}
+      {connectedDevice && (
+        <ThemedView style={styles.stepContainer}>
+          <ThemedText type="subtitle">Connect to Wi-Fi</ThemedText>
+          <Text style={styles.label}>Network Name (SSID):</Text>
+          <TextInput
+            style={styles.input}
+            value={wifiSSID}
+            onChangeText={setWifiSSID}
+            placeholder="Your Wi-Fi network name"
+          />
+          <Text style={styles.label}>Password:</Text>
+          <TextInput
+            style={styles.input}
+            value={wifiPassword}
+            onChangeText={setWifiPassword}
+            placeholder="Your Wi-Fi password"
+            secureTextEntry
+          />
+          <Button title="Send Credentials to Greenhouse" onPress={sendWifiCredentials} />
+        </ThemedView>
+      )}
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
         <ThemedText>
@@ -231,4 +331,16 @@ const styles = StyleSheet.create({
     left: 0,
     position: 'absolute',
   },
+  deviceItem: { padding: 15, marginVertical: 5, backgroundColor: '#f0f0f0', borderRadius: 8 },
+  deviceText: { fontSize: 16, fontWeight: 'bold' },
+  label: { fontSize: 16, fontWeight: '500', marginTop: 10 },
+  input: {
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    marginTop: 5,
+    backgroundColor: '#fff',
+  }
 });
