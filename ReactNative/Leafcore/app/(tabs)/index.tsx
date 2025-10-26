@@ -1,30 +1,24 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet, Alert, Linking, TouchableOpacity, TextInput } from 'react-native';
+import { Alert, Linking, Platform, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { Text, View, Button, FlatList } from 'react-native';
-import { BleManager as BleManagerPLX, Device } from 'react-native-ble-plx';
-import BleManager from 'react-native-ble-manager';
+import { Base64 } from 'js-base64';
+import { useState } from 'react';
+import { Button, FlatList, Text } from 'react-native';
 import { promptForEnableLocationIfNeeded } from 'react-native-android-location-enabler';
+import BleManager from 'react-native-ble-manager';
+import { BleManager as BleManagerPLX, Device } from 'react-native-ble-plx';
 import { PERMISSIONS, RESULTS, request, requestMultiple } from 'react-native-permissions';
 import WifiManager from 'react-native-wifi-reborn';
-import { Base64 } from 'js-base64';
 
 const GREENHOUSE_SERVICE_UUID = "12345678-1234-5678-1234-567890abcdef";
 const SSID_CHAR_UUID    = "12345678-1234-5678-1234-567890abcde1";
 const PASS_CHAR_UUID    = "12345678-1234-5678-1234-567890abcde2";
 const DEVICE_NAME_PREFIX = "LC-Greenhouse";
-
-const [wifiSSID, setWifiSSID] = useState('');
-const [wifiPassword, setWifiPassword] = useState('');
-
-const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
-const [discoveredDevices, setDiscoveredDevices] = useState<Device[]>([]);
 
 const manager = new BleManagerPLX();
 
@@ -35,6 +29,12 @@ const manager = new BleManagerPLX();
 // catch errors and display info to the user
 
 export default function HomeScreen() {
+
+  const [wifiSSID, setWifiSSID] = useState('');
+  const [wifiPassword, setWifiPassword] = useState('');
+
+  const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
+  const [discoveredDevices, setDiscoveredDevices] = useState<Device[]>([]);
 
   const scanForDevices = () => {
     manager.startDeviceScan([GREENHOUSE_SERVICE_UUID],null,(error,foundDevice) => {
@@ -165,7 +165,7 @@ export default function HomeScreen() {
 
    if (scanPermission !== RESULTS.GRANTED || connectPermission !== RESULTS.GRANTED) {
          Alert.alert("Permission Denied", "Bluetooth permissions are required for registration process.");
-         return;
+         openBluetoothSettings();
        }
        console.log("Bluetooth permissions granted.");
        console.log("Step 4: Checking Bluetooth state...");
