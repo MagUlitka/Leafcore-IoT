@@ -8,7 +8,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
 import { Base64 } from 'js-base64';
 import { useState } from 'react';
-import { Button, FlatList, Text } from 'react-native';
+import { Button, Text } from 'react-native';
 import { promptForEnableLocationIfNeeded } from 'react-native-android-location-enabler';
 import BleManager from 'react-native-ble-manager';
 import { BleManager as BleManagerPLX, Device } from 'react-native-ble-plx';
@@ -156,17 +156,35 @@ export default function HomeScreen() {
       }
     }
     console.log("Step 3: Requesting Bluetooth permissions...");
-    const bluetoothPermissions = await requestMultiple([
-        PERMISSIONS.ANDROID.BLUETOOTH_SCAN,
-        PERMISSIONS.ANDROID.BLUETOOTH_CONNECT,
-    ]);
-   const scanPermission = bluetoothPermissions[PERMISSIONS.ANDROID.BLUETOOTH_SCAN];
-   const connectPermission = bluetoothPermissions[PERMISSIONS.ANDROID.BLUETOOTH_CONNECT];
+    let bluetoothPermissionsGranted = false;
 
-   if (scanPermission !== RESULTS.GRANTED || connectPermission !== RESULTS.GRANTED) {
+  if (Platform.Version >= 31) { 
+    const bluetoothPermissions = await requestMultiple([
+      PERMISSIONS.ANDROID.BLUETOOTH_SCAN,
+      PERMISSIONS.ANDROID.BLUETOOTH_CONNECT,
+    ]);
+    const scanPermission = bluetoothPermissions[PERMISSIONS.ANDROID.BLUETOOTH_SCAN];
+    const connectPermission = bluetoothPermissions[PERMISSIONS.ANDROID.BLUETOOTH_CONNECT];
+    console.log('Scan Permission (Android 12+):', scanPermission);
+    console.log('Connect Permission (Android 12+):', connectPermission);
+    if (scanPermission !== RESULTS.GRANTED || connectPermission !== RESULTS.GRANTED) {
          Alert.alert("Permission Denied", "Bluetooth permissions are required for registration process.");
-         openBluetoothSettings();
+         return;
        }
+    else {bluetoothPermissionsGranted = true}
+    }
+  else { 
+    console.log('Android version < 12. Assuming manifest permissions are granted.');
+    bluetoothPermissionsGranted = true;
+  }
+
+  if (!bluetoothPermissionsGranted) {
+    Alert.alert("Permission Denied", "Bluetooth permissions are required for the registration process.");
+    openBluetoothSettings();
+    return;
+  }
+  console.log("Bluetooth permissions granted or not required at runtime.");
+
        console.log("Bluetooth permissions granted.");
        console.log("Step 4: Checking Bluetooth state...");
 
@@ -227,15 +245,20 @@ export default function HomeScreen() {
         <ThemedText type="title">Device Registration</ThemedText>
       </ThemedView>
       {!connectedDevice && (
-        <ThemedView style={styles.stepContainer}>
-          <Button title="Scan for Greenhouses" onPress={scanForDevices} />
-          <FlatList
-            data={discoveredDevices}
-            renderItem={renderDeviceItem}
-            keyExtractor={(item) => item.id}
-          />
-        </ThemedView>
-      )}
+  <ThemedView style={styles.stepContainer}>
+    <Button title="Scan for Greenhouses" onPress={scanForDevices} />
+    {discoveredDevices.map(device => (
+      <TouchableOpacity 
+        key={device.id}
+        style={styles.deviceItem} 
+        onPress={() => connectToFoundDevice(device)}
+      >
+        <Text style={styles.deviceText}>{device.name || 'Unnamed Device'}</Text>
+      </TouchableOpacity>
+    ))}
+
+  </ThemedView>
+)}
       {connectedDevice && (
         <ThemedView style={styles.stepContainer}>
           <ThemedText type="subtitle">Connect to Wi-Fi</ThemedText>
