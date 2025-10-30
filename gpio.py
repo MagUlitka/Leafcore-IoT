@@ -1,7 +1,7 @@
 import OPi.GPIO as GPIO
 import time
 GPIO.setmode(GPIO.BOARD)
-PIN=11
+PIN=13
 GPIO.setup(PIN, GPIO.OUT)
 print("on")
 
