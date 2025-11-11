@@ -10,15 +10,16 @@ import { Base64 } from 'js-base64';
 import { useState } from 'react';
 import { Button, Text } from 'react-native';
 import { promptForEnableLocationIfNeeded } from 'react-native-android-location-enabler';
-import BleManager from 'react-native-ble-manager';
-import { BleManager as BleManagerPLX, Device } from 'react-native-ble-plx';
+import { BleManager as BleManagerPLX, Device, BleError } from 'react-native-ble-plx';
 import { PERMISSIONS, RESULTS, request, requestMultiple } from 'react-native-permissions';
 import WifiManager from 'react-native-wifi-reborn';
 
 const GREENHOUSE_SERVICE_UUID = "12345678-1234-5678-1234-567890abcdef";
 const SSID_CHAR_UUID    = "12345678-1234-5678-1234-567890abcde1";
 const PASS_CHAR_UUID    = "12345678-1234-5678-1234-567890abcde2";
-const DEVICE_NAME_PREFIX = "LC-Greenhouse";
+const SSID_EXEC_CHAR_UUID = "12345678-1234-5678-1234-567890abcde3";
+const PASS_EXEC_CHAR_UUID = "12345678-1234-5678-1234-567890abcde4";
+const DEVICE_NAME_PREFIX = "Greenhouse";
 
 const manager = new BleManagerPLX();
 
@@ -36,8 +37,18 @@ export default function HomeScreen() {
   const [connectedDevice, setConnectedDevice] = useState<Device | null>(null);
   const [discoveredDevices, setDiscoveredDevices] = useState<Device[]>([]);
 
-  const scanForDevices = () => {
+  const scanForDevices = async () => {
+
+    const state = await manager.state();
+    if (state !== 'PoweredOn') {
+      Alert.alert(
+        "Bluetooth is Off",
+        "Please run 'Enable Location' first and ensure Bluetooth is enabled."
+      );
+      return;
+    }
     manager.startDeviceScan([GREENHOUSE_SERVICE_UUID],null,(error,foundDevice) => {
+      console.log("started scanning");
       if (error) {
         Alert.alert("Scan Error", error.message);
         return;
@@ -87,20 +98,42 @@ export default function HomeScreen() {
       Alert.alert("Missing Information", "Device not connected or Wi-Fi info is incomplete.");
       return;
     }
+
     try {
-      await connectedDevice.writeCharacteristicWithResponseForService(
-        GREENHOUSE_SERVICE_UUID, SSID_CHAR_UUID, Base64.encode(wifiSSID)
+      console.log("Encoding and sending SSID...");
+      const ssidBase64 = Base64.encode(wifiSSID);
+      await connectedDevice.writeCharacteristicWithoutResponseForService(
+        GREENHOUSE_SERVICE_UUID, SSID_CHAR_UUID, ssidBase64
       );
+      console.log("Sending SSID execute...");
       await connectedDevice.writeCharacteristicWithResponseForService(
-        GREENHOUSE_SERVICE_UUID, PASS_CHAR_UUID, Base64.encode(wifiPassword)
+        GREENHOUSE_SERVICE_UUID, SSID_EXEC_CHAR_UUID, Base64.encode("1")
+      );
+
+      console.log("Encoding and sending Password...");
+      const passBase64 = Base64.encode(wifiPassword);
+      await connectedDevice.writeCharacteristicWithoutResponseForService(
+        GREENHOUSE_SERVICE_UUID, PASS_CHAR_UUID, passBase64
+      );
+      console.log("Sending Password execute...");
+      await connectedDevice.writeCharacteristicWithResponseForService(
+        GREENHOUSE_SERVICE_UUID, PASS_EXEC_CHAR_UUID, Base64.encode("1")
       );
       
-      Alert.alert("Success", "Wi-Fi credentials sent to the greenhouse.");
+      Alert.alert("Success", "Wi-Fi credentials sent!");
       await connectedDevice.cancelConnection();
       setConnectedDevice(null);
 
     } catch (error) {
-      Alert.alert("Send Error", "Failed to send credentials over Bluetooth.");
+       console.error("FULL SEND ERROR:", error);
+       if (error instanceof BleError) {
+         Alert.alert(
+           "Send Error",
+           `Reason: ${error.reason || error.message}\nError Code: ${error.errorCode}`
+         );
+       } else {
+         Alert.alert("Send Error", "An unknown error occurred.");
+       }
     }
   };
 
@@ -193,7 +226,7 @@ export default function HomeScreen() {
        if (state !== 'PoweredOn') {
           console.log("Bluetooth is off. Requesting to enable it...");
       try {
-        await BleManager.enableBluetooth();
+        await manager.enable();
         console.log("Bluetooth has been enabled by the user.");
       } catch (error) {
         console.log("User did not enable Bluetooth. Opening settings as a fallback.");
@@ -204,12 +237,8 @@ export default function HomeScreen() {
 
            console.log("All permissions granted and services are on. Ready to start scanning!");
            Alert.alert("Success!", "All permissions are granted. Ready to start the pairing process.");
+           scanForDevices();
            //here add:
-           //1. pairing
-           //2. prompting user to choose a device
-           //3. wifi permissions
-           //4. wifi access
-           //5. sending wifi data
            //6. wait for device's confirmation
            //7. turn bluetooth off
            //8. wait for device's data over wifi
