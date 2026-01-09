@@ -6,11 +6,12 @@ from bluezero import localGATT
 from bluezero import async_tools
 from bluezero import adapter
 
-GREENHOUSE_SERVICE_UUID = "12345678-1234-5678-1234-567890abcdef"
-SSID_CHAR_UUID = "12345678-1234-5678-1234-567890abcde1"
-PASS_CHAR_UUID = "12345678-1234-5678-1234-567890abcde2"
-SSID_EXEC_CHAR_UUID = "12345678-1234-5678-1234-567890abcde3"
-PASS_EXEC_CHAR_UUID = "12345678-1234-5678-1234-567890abcde4"
+LEAFCORE_SERVICE_UUID = "c62a771b-095e-4f60-a383-bca1f8f96210"
+SSID_CHAR_UUID = "5c3dc741-7850-4b0a-ac77-1ea26bdb73f1"
+PASS_CHAR_UUID = "5c3dc741-7850-4b0a-ac77-1ea26bdb73f2"
+SSID_EXEC_CHAR_UUID = "5c3dc741-7850-4b0a-ac77-1ea26bdb73f3"
+PASS_EXEC_CHAR_UUID = "5c3dc741-7850-4b0a-ac77-1ea26bdb73f4"
+DEVICE_NAME_PREFIX = "LC_Greenhouse"
 
 
 class WifiConfigurator:
@@ -82,12 +83,12 @@ def main():
         logging.info(f"Using adapter: {dongle.address}")
         my_server = peripheral.Peripheral(
             adapter_address=dongle.address,
-            local_name="Greenhouse"
+            local_name="LC_Greenhouse"
         )
-        logging.info(f"Adding service: {GREENHOUSE_SERVICE_UUID}")
+        logging.info(f"Adding service: {LEAFCORE_SERVICE_UUID}")
         my_server.add_service(
             srv_id=0,
-            uuid=GREENHOUSE_SERVICE_UUID,
+            uuid=LEAFCORE_SERVICE_UUID,
             primary=True
         )
 

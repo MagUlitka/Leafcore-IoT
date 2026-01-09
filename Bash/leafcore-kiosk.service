@@ -1,0 +1,20 @@
+#ran by "pm2 start "serve -s $(pwd)/build -l 8081" --name leafcore-kiosk" command
+
+[Unit]
+Description=Leafcore Kiosk Service
+After=network.target systemd-user-sessions.service
+
+[Service]
+User=orangepi
+Group=orangepi
+PAMName=login
+Type=simple
+TTYPath=/dev/tty7
+ExecStartPre=+/bin/bash -c "for i in /sys/bus/usb/devices/usb*; do echo 0 > $i/authorized; sleep 0.5; echo 1 > $i/authorized; done; sleep 5"
+ExecStartPre=+/usr/bin/chvt 7
+ExecStart=/usr/bin/xinit /home/orangepi/Desktop/boot_kiosk.sh -- :0 -keeptty -sharevts -nocursor -quiet -logverbose 0
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

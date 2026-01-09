@@ -1,0 +1,15 @@
+#Replacing terminal logs with custom splash art - LC Logo.
+
+[Unit]
+Description=Show Boot Splash
+DefaultDependencies=no
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/fbi -d /dev/fb0 --noverbose -a /home/orangepi/greenhouse-cover-screen.png
+StandardInput=tty
+TTYPath=/dev/tty1
+
+[Install]
+WantedBy=sysinit.target

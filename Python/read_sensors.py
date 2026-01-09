@@ -1,20 +1,22 @@
 import sys
 import os
+
+import requests
 import config
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, current_dir)
-
+import json
+import datetime
 import time
 import gpiod
 from gpiod.line import Direction, Value, Bias
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
 
 try:
     import adafruit_ahtx0
     import adafruit_veml7700
 except ImportError as e:
     print(f"Library Error: {e}")
-    print("Ensure you ran 'sudo pip3 install ... --target .'")
     exit()
 
 
@@ -109,16 +111,11 @@ try:
         sensor_veml = None
 
     print("-" * 40)
-    # --- Added imports / file path ---
-    import json
     OUTPUT_FILE = os.path.join(current_dir, "sensor_data.json")
-    # --- end added ---
 
     while True:
-        # Prepare default JSON payload with None values for missing sensors
         data = {"temperature": None, "humidity": None, "brightness": None}
 
-        # Read temperature & humidity (rounded to 1 decimal) if available
         if sensor_aht:
             try:
                 data["temperature"] = round(sensor_aht.temperature, 2)
@@ -127,7 +124,6 @@ try:
                 data["temperature"] = None
                 data["humidity"] = None
 
-        # Read brightness (lux -> normalized 0.0-1.0, clamped) if available
         if sensor_veml:
             try:
                 lux = sensor_veml.lux
@@ -136,12 +132,9 @@ try:
             except Exception:
                 data["brightness"] = None
 
-        # Add a timestamp (unix seconds)
-        data["timestamp"] = int(time.time())
+        data["timestamp"] = datetime.datetime.fromtimestamp(time.time()).isoformat()
 
-        # Load existing data, prepend new entry, and save as JSON array
         try:
-            # Load existing data if file exists
             if os.path.exists(OUTPUT_FILE):
                 with open(OUTPUT_FILE, "r") as f:
                     data_list = json.load(f)
@@ -149,15 +142,21 @@ try:
                         data_list = []
             else:
                 data_list = []
-            
-            # Prepend new data to the list (newest first)
             data_list.insert(0, data)
-            
-            # Write the updated list back to file
+    
             with open(OUTPUT_FILE, "w") as f:
                 json.dump(data_list, f, indent=4)
         except Exception as e:
             print(f"File update error: {e}")
+
+        with open("sensor_data.json", "r") as f:
+            data = json.load(f) 
+            url = "http://172.19.14.15:8080/terrarium/dataTerrarium"
+            try:
+                response = requests.post(url, json=data) 
+                print(f"Status: {response.status_code}")
+            except Exception as e:
+                print(f"Sending sensor data error: {e}")
 
         time.sleep(2)
 

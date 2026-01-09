@@ -10,13 +10,6 @@ import os
 
 app = Flask(__name__)
 
-# device_state = {
-#     "light": {"state": "off", "intensity": 0.0},
-#     "fan": {"state": "off"},
-#     "pump": {"state": "off"},
-#     "heat": {"state": "off"}
-# }
-
 device_state = {
 "light": {"device_name": "LC_Greenhouse_Module_Light001",
 "type": "light",
@@ -197,14 +190,6 @@ class GPIOController(threading.Thread):
 
 @app.route('/device-control', methods=['POST'])
 def update_device():
-    """
-    JSON data:
-    {
-        "component": "light",
-        "action": "on",
-        "intensity": 0.5 
-    }
-    """
     data = request.json
     component = data.get("component")
     action = data.get("action")
@@ -224,13 +209,6 @@ def update_device():
 
 @app.route('/device-mode-edit', methods=['POST'])
 def device_mode_edit():
-    """
-    JSON data:
-    {
-        "component": "light",
-        "mode": "manual"
-    }
-    """
     data = request.json
     component = data.get("component")
     action = data.get("mode")
@@ -248,6 +226,22 @@ def device_mode_edit():
 @app.route('/device-state', methods=['GET'])
 def get_state():
     return jsonify(device_state)
+
+@app.route('/current-setting', methods=['POST'])
+def receive_data():
+    try:
+        data = request.json
+        print("Received data from backend!")
+        print(data)
+        
+        with open(settings_file, 'w') as f:
+            json.dump(data, f)
+        
+        return jsonify({"status": "success", "message": "Data received"}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"status": "error"}), 400
 
 if __name__ == '__main__':
     def run_web_server():
