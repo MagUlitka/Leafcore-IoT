@@ -7,74 +7,21 @@ import config
 import datetime
 import json
 import os
+import requests
 
 app = Flask(__name__)
 
-device_state = {
-"light": {"device_name": "LC_Greenhouse_Module_Light001",
-"type": "light",
-"state": "off",
-"mode": "auto",
-"intensity": 0.0,
-"group_id": "LC_Greenhouse_Box_ModuleGroup001",
-"last_edit_date": str(datetime.datetime.now())},
-
-"fan": {"device_name": "LC_Greenhouse_Module_Fan001",
-"type": "fan",
-"state": "off",
-"mode": "auto",
-"group_id": "LC_Greenhouse_Box_ModuleGroup001",
-"last_edit_date": str(datetime.datetime.now())},
-
-"pump": {"device_name": "LC_Greenhouse_Module_Pump001",
-"type": "water pump",
-"state": "off",
-"mode": "auto",
-"group_id": "LC_Greenhouse_Box_ModuleGroup001",
-"last_edit_date": str(datetime.datetime.now())},
-
-"sprinkler": {"device_name": "LC_Greenhouse_Module_Sprinkler001",
-"type": "sprinkler",
-"state": "off",
-"mode": "auto",
-"group_id": "LC_Greenhouse_Box_ModuleGroup001",
-"last_edit_date": str(datetime.datetime.now())},
-
-"heat_mat": {"device_name": "LC_Greenhouse_Module_Heat001",
-"type": "heating mat",
-"state": "off",
-"mode": "auto",
-"group_id": "LC_Greenhouse_Box_ModuleGroup001",
-"last_edit_date": str(datetime.datetime.now())},
-
-"temp_hum_sensor": {"device_name": "LC_Greenhouse_Module_TempHumSensor001",
-"type": "temperature and humidity sensor",
-"state": "off",
-"mode": "auto",
-"group_id": "LC_Greenhouse_Box_ModuleGroup001",
-"last_edit_date": str(datetime.datetime.now())},
-
-"light_sensor": {"device_name": "LC_Greenhouse_Module_LightSensor001",
-"type": "light sensor",
-"state": "off",
-"mode": "auto",
-"group_id": "LC_Greenhouse_Box_ModuleGroup001",
-"last_edit_date": str(datetime.datetime.now())},
-
-"water_level_sensor": {"device_name": "LC_Greenhouse_Module_WaterLevelSensor001",
-"type": "water level sensor",
-"state": "off",
-"mode": "auto",
-"group_id": "LC_Greenhouse_Box_ModuleGroup001",
-"last_edit_date": str(datetime.datetime.now())}
-}
-
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sensor_data_file = os.path.join(current_dir, "sensor_data.json")
-settings_file = os.path.join(current_dir, "source_files", "dummy_setting.json")
+sensor_data_file = os.path.join(current_dir, "source_files", "sensor_data.json")
+settings_file = os.path.join(current_dir, "source_files", "current_setting.json")
+devices_info_file = os.path.join(current_dir, "source_files", "devices_info.json")
+server_url = "http://33.11.238.45:8081/terrarium/"
 
 PWM_FREQUENCY = 100  
 PWM_PERIOD = 1.0 / PWM_FREQUENCY
+
+with open(devices_info_file, 'r') as f:
+    devices_info = json.load(f)
 
 class GPIOController(threading.Thread):
     def __init__(self):
@@ -115,56 +62,56 @@ class GPIOController(threading.Thread):
                             start_time = settings['light_schedule']['start_time']
                             end_time = settings['light_schedule']['end_time']
                             
-                            if device_state["light"]["mode"] == "auto":
+                            if devices_info["light"]["mode"] == "auto":
                                 if start_time <= current_time_str <= end_time:
-                                    device_state["light"]["state"] = "on"
+                                    devices_info["light"]["state"] = "on"
                                     if bright is not None:
-                                        device_state["light"]["intensity"] = min(1.0, max(0.0, bright / settings.get('optimal_light', 1.0)))
+                                        devices_info["light"]["intensity"] = min(1.0, max(0.0, bright / settings.get('optimal_light', 1.0)))
                                     else:
-                                        device_state["light"]["intensity"] = 1.0
+                                        devices_info["light"]["intensity"] = 1.0
                                 else:
-                                    device_state["light"]["state"] = "off"
+                                    devices_info["light"]["state"] = "off"
                             
-                            if device_state["fan"]["mode"] == "auto" and temp is not None:
+                            if devices_info["fan"]["mode"] == "auto" and temp is not None:
                                 if temp > settings['optimal_temperature']:
-                                    device_state["fan"]["state"] = "on"
+                                    devices_info["fan"]["state"] = "on"
                                 else:
                                     if humid is not None:
                                         if humid > settings['optimal_humidity']:
-                                            device_state["fan"]["state"] = "on"
+                                            devices_info["fan"]["state"] = "on"
                                         else:
-                                            device_state["fan"]["state"] = "off"
+                                            devices_info["fan"]["state"] = "off"
                             else:
-                                device_state["fan"]["state"] = "off"
+                                devices_info["fan"]["state"] = "off"
                             
-                            if device_state["heat_mat"]["mode"] == "auto" and temp is not None:
+                            if devices_info["heat_mat"]["mode"] == "auto" and temp is not None:
                                 if temp < settings['optimal_temperature']:
-                                    device_state["heat_mat"]["state"] = "on"
+                                    devices_info["heat_mat"]["state"] = "on"
                                 else:
-                                    device_state["heat_mat"]["state"] = "off"
+                                    devices_info["heat_mat"]["state"] = "off"
                             
-                            if device_state["sprinkler"]["mode"] == "auto" and humid is not None:
+                            if devices_info["sprinkler"]["mode"] == "auto" and humid is not None:
                                 if humid < settings['optimal_humidity']:
-                                    device_state["sprinkler"]["state"] = "on"
+                                    devices_info["sprinkler"]["state"] = "on"
                                 else:
-                                    device_state["sprinkler"]["state"] = "off"
+                                    devices_info["sprinkler"]["state"] = "off"
                     
                     except Exception as e:
                         print(f"Automation error: {e}")
                     
-                    fan_val = Value.ACTIVE if device_state["fan"]["state"] == "on" else Value.INACTIVE
+                    fan_val = Value.ACTIVE if devices_info["fan"]["state"] == "on" else Value.INACTIVE
                     request.set_value(config.FAN_PIN, fan_val)
 
-                    pump_val = Value.ACTIVE if device_state["pump"]["state"] == "on" else Value.INACTIVE
+                    pump_val = Value.ACTIVE if devices_info["pump"]["state"] == "on" else Value.INACTIVE
                     request.set_value(config.PUMP_PIN, pump_val)
 
-                    sprinkler_val = Value.ACTIVE if device_state["sprinkler"]["state"] == "on" else Value.INACTIVE
+                    sprinkler_val = Value.ACTIVE if devices_info["sprinkler"]["state"] == "on" else Value.INACTIVE
                     request.set_value(config.SPRINKLER_PIN, sprinkler_val)
 
-                    heat_val = Value.ACTIVE if device_state["heat_mat"]["state"] == "on" else Value.INACTIVE
+                    heat_val = Value.ACTIVE if devices_info["heat_mat"]["state"] == "on" else Value.INACTIVE
                     request.set_value(config.HEATING_MAT_PIN, heat_val)
 
-                    light_conf = device_state["light"]
+                    light_conf = devices_info["light"]
                     if light_conf["state"] == "on":
                         intensity = light_conf.get("intensity", 1.0)
 
@@ -199,33 +146,40 @@ def update_device():
 
     if component == "light":
         intensity = data.get("intensity")
-        device_state["light"]["state"] = action
+        devices_info["light"]["state"] = action
         if intensity is not None:
-            device_state["light"]["intensity"] = max(0.0, min(1.0, float(intensity)))
+            devices_info["light"]["intensity"] = max(0.0, min(1.0, float(intensity)))
     else:
-        device_state[component]["state"] = action
+        devices_info[component]["state"] = action
 
-    return jsonify({"state": "success", "current_state": device_state[component]})
+    return jsonify({"state": "success", "current_state": devices_info[component]})
 
 @app.route('/device-mode-edit', methods=['POST'])
 def device_mode_edit():
     data = request.json
-    component = data.get("component")
+    component = data.get("type")
     action = data.get("mode")
+    state = data.get("state")
 
     if component not in config.COMPONENT_MAP:
         return jsonify({"error": "Invalid component"}), 400
 
     if component == "light" or component == "pump" or component == "sprinkler":
-        device_state[component]["mode"] = "manual"
-        return jsonify({"state": "success", "current_state": device_state[component]["mode"]})
+        devices_info[component]["mode"] = "manual"
+        devices_info[component]["state"] = state
+        if component == "light":
+                intensity = data.get("intensity")
+                if intensity is not None:
+                    devices_info["light"]["intensity"] = max(0.0, min(1.0, float(intensity)))
+        devices_info[component]["last_edit_date"] = datetime.datetime.now().isoformat()
+        return jsonify({"state": "success", "current_mode": devices_info[component]["mode"], "current_state": devices_info[component]["state"]})
     else:
         return jsonify({"error": "Invalid component for mode change"}), 400
     
 
 @app.route('/device-state', methods=['GET'])
 def get_state():
-    return jsonify(device_state)
+    return jsonify(devices_info)
 
 @app.route('/current-setting', methods=['POST'])
 def receive_data():
@@ -237,11 +191,18 @@ def receive_data():
         with open(settings_file, 'w') as f:
             json.dump(data, f)
         
-        return jsonify({"status": "success", "message": "Data received"}), 200
+        url = server_url + f"setting/{data['setting_id']}"
+        response = requests.post(url, json=data)
+        
+        if response.status_code == 200:
+            return jsonify({"status": "success", "message": "Data received and sent to server"}), 200
+        else:
+            print(f"Error: Server responded with status {response.status_code}")
+            return jsonify({"status": "error", "message": f"Server error: {response.status_code}"}), 400
 
     except Exception as e:
         print(f"Error: {e}")
-        return jsonify({"status": "error"}), 400
+        return jsonify({"status": "error", "message": "An error occurred"}), 400
 
 if __name__ == '__main__':
     def run_web_server():
@@ -261,8 +222,8 @@ if __name__ == '__main__':
         controller.run()
     except KeyboardInterrupt:
         print("\nTurning off all devices...")
-        for dev in device_state:
-            device_state[dev]["state"] = "off"
+        for dev in devices_info:
+            devices_info[dev]["state"] = "off"
         try:
             with gpiod.request_lines(
                 path=config.CHIP_PATH,
